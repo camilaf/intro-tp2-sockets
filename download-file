@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+import argparse
+from tcp_client.download_file import download_file as download_file_tcp
+from udp_client.download_file import download_file as download_file_udp
+
+def parse_arguments():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("-H", "--server-host", default="127.0.0.1", help="la dirección IP del servidor")
+  parser.add_argument("-P", "--server-port", type=int, default=8080, help="el puerto del servidor")
+  parser.add_argument("-n", "--name", help="el nombre del archivo a descargar del servidor", required=True)
+  parser.add_argument("-d", "--dst", help="path donde se guardará el archivo en el sistema", required=True)
+  parser.add_argument("-p", "--protocol", help="el protocolo a utilizar para la comunicación", default="tcp", choices=['tcp', 'udp'])
+
+  return parser.parse_args()
+
+def main():
+  args = parse_arguments()
+  server_address = (args.server_host, args.server_port)
+
+  if args.protocol == "tcp":
+    download_file_tcp(server_address, args.name, args.dst)
+  elif args.protocol == "udp":
+    download_file_udp(server_address, args.name, args.dst)
+  else:
+    raise Exception("protocolo invalido")
+
+main()
