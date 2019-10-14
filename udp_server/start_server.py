@@ -50,7 +50,7 @@ def send_file(server_socket, client_address, file_name):
     with open(file_name) as f:
         for i in range(0, file_size, CHUNK_SIZE * WINDOW):
             # mappeo a los offsets de cada chunk con lo que lei del archivo. e.g: { 0 : 'manuelita ', 4: 'se marcho ' }
-            chunks = { str(i) : f.read(CHUNK_SIZE) for _ in range(WINDOW) } 
+            chunks = { str(i) : f.read(CHUNK_SIZE) for j in range(WINDOW) if (i + j*CHUNK_SIZE) < file_size } 
             print('Read {}'.format(chunks))
             # Mando los chunks de a ventanas de WINDOW,
             # o sea mando una cantidad WINDOW de chunks de tamanio CHUNK_SIZE
