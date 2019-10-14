@@ -5,11 +5,14 @@ SIZE = '1200'
 OFFSET = '60'
 DELIMITER = ';'
 WINDOW = 4
+MAX_TIMEOUTS_WAIT = 5
 
 def start_server(server_address, storage_dir):
     print('UDP: start_server({}, {})'.format(server_address, storage_dir))
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_socket.bind(server_address)
+    server_socket.settimeout(2)
+
     print('The server is ready to receive')
     while True:
 
@@ -59,7 +62,7 @@ def send_chunks(server_socket, client_address, chunks):
     must_transfer = True
     # Mandamos todos los chunks de la lista
     for offset, chunk in chunks:
-        client_socket.sendto(message.encode(), server_address)
+        client_socket.sendto(chunk.encode(), server_address)
     while must_transfer:
         try:
             response, addr = client_socket.recvfrom(CHUNK_SIZE)
@@ -69,7 +72,6 @@ def send_chunks(server_socket, client_address, chunks):
         except socket.timeout:
             # Mandamos todos los no recibidos
             for offset, chunk in chunks:
-                client_socket.sendto(message.encode(), server_address)
-
+                client_socket.sendto(chunk.encode(), server_address)
 
 
