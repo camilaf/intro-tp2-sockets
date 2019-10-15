@@ -82,7 +82,7 @@ def recv_file(client_socket, server_address, file_size, chunks, offset):
         try:
             print('Waiting to receive chunk...')
 
-            response, addr = client_socket.recvfrom(offset)
+            response, addr = client_socket.recvfrom(CHUNK_SIZE)
             offset_number, chunk = response.decode().split(DELIMITER, 1)
             if chunk == 'END':
                 print('Received END!')
