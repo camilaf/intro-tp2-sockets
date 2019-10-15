@@ -5,6 +5,9 @@ CHUNK_SIZE = 2048
 DELIMITER = ';'
 MAX_TIMEOUTS = 5
 
+SUCCESS = 0
+ERROR = 1
+
 
 def download_file(server_address, name, dst):
     # TODO: Implementar UDP download_file client
@@ -20,16 +23,22 @@ def download_file(server_address, name, dst):
         print('The requested file {} does not exist'.format(name))
         return 0
     file_size, offset = response.split(DELIMITER, 1)
-    print(response)
+    print('Received file_size {} and offset {}.'.format(file_size, offset))
+
+    file_size = int(file_size)
+    offset = int(offset)
 
     send_message('start transmission' + DELIMITER + name, server_address, client_socket)
 
-    recv_file(file_size, chunks, offset)
+    status = recv_file(client_socket, server_address, file_size, chunks, offset)
 
-    write_file(file_size, chunks, offset, dst)
+    if (status == SUCCESS):
+        print('Writing file...')
+        write_file(file_size, chunks, offset, dst)
 
-    response = end_download(server_address, client_socket)
-    print(response)
+        #print('Send end transmission message')
+        #response = end_download(server_address, client_socket)
+        #print(response)
 
     client_socket.close()
     pass
@@ -45,7 +54,7 @@ def send_message(message, server_address, client_socket):
             print('Socket timed out attempting to send message!')
 
 
-def recv_file(file_size, chunks, offset):
+def recv_file(client_socket, server_address, file_size, chunks, offset):
     # Tengo que meter el chunk en el diccionario
     # Actualizar el ultimo recibido en general
     # Chequear que estamos recibiendo en orden los chunks
@@ -54,32 +63,37 @@ def recv_file(file_size, chunks, offset):
     # TODO NTH timeout si me desenchufan el server
     # TODO Garantia de entrega: timeout
     # ultimo recibido en orden, ultimo recibido en general
-    received_chunks = (-1, -1)
+    received_chunks = [-1, -1]
     total_received_size = 0
     timeouts = 0
+    offset_number = -1
+    expected_offset_number = -1
     while total_received_size < file_size:  # while no es fin or timeout
         try:
+            print('Waiting to receive chunk...')
             response, addr = client_socket.recvfrom(CHUNK_SIZE)
             offset_number, chunk = response.decode().split(DELIMITER, 1)
             if chunk == 'END':
-                return
+                print('Received END!')
+                return SUCCESS
+            print('Received offset_number {} and chunk {}'.format(offset_number, chunk))
             chunks[offset_number] = chunk
             expected_offset_number = received_chunks[0] + offset
             total_received_size += CHUNK_SIZE
             timeouts = 0
         except socket.timeout:
+            print('Receive chunk timed out!')
             if total_received_size < file_size and timeouts < MAX_TIMEOUTS:
                 timeouts += 1
             else:
-                return
+                return ERROR
         if offset_number > received_chunks[1]:
             received_chunks[1] = offset_number
         if expected_offset_number != offset_number:
-            client_socket.sendto(
-                expected_offset_number.encode(), server_address)
+            client_socket.sendto(str(expected_offset_number).encode(), server_address)
         else:
             received_chunks[0] = offset_number
-            client_socket.sendto(offset_number.encode(), server_address)
+            client_socket.sendto(str(offset_number).encode(), server_address)
 
 
 def write_file(file_size, chunks, offset, dst):

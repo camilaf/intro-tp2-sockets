@@ -11,11 +11,10 @@ def start_server(server_address, storage_dir):
     print('UDP: start_server({}, {})'.format(server_address, storage_dir))
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_socket.bind(server_address)
-    server_socket.settimeout(2)
 
     print('The server is ready to receive')
     while True:
-
+        server_socket.settimeout(None)
         message, client_address = server_socket.recvfrom(CHUNK_SIZE)
         operation, file_info = message.decode().split(DELIMITER, 1)
 
@@ -39,6 +38,8 @@ def start_server(server_address, storage_dir):
 
         elif operation == 'start transmission':
             print('Starting file transmission')
+            
+            server_socket.settimeout(2)
             send_file(server_socket, client_address, file_info)
         else:
             continue
