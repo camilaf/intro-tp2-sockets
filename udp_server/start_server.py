@@ -90,6 +90,7 @@ def send_chunks(server_socket, client_address, chunks):
                 must_transfer = len(chunks) > 0
                 print('chunks not acked {}'.format(chunks))
         except socket.timeout:
+            i += 1
             print('Timeout while waiting for ack!')
             continue
     if i >= MAX_TIMEOUTS_WAIT:
