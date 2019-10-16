@@ -30,13 +30,20 @@ def start_server(server_address, storage_dir):
 
                 # Recibir el nombre del archivo y validar que existe
                 # Informar al cliente del resultado
-                if (os.path.isfile(file_info)):
+                if os.path.isfile(file_info):
                     print('Found file {}'.format(file_info))
                     file_size = os.path.getsize(file_info)
                     response = str(file_size) + DELIMITER + OFFSET
                     server_socket.sendto(response.encode(), client_address)
                 else:
                     server_socket.sendto('File not found'.encode(), client_address)
+
+            if operation == 'upload':
+                name, total_chunks = file_info.split(DELIMITER, 1)
+                print('Requested info to upload file {} with {} chunks'.format(name, total_chunks))
+                server_socket.sendto("Start upload".encode(), client_address)
+                server_socket.settimeout(2)
+                recv_file(server_socket, client_address, int(total_chunks), storage_dir + '/' + name)
 
             elif operation == 'start transmission':
                 print('Starting file transmission')
@@ -97,4 +104,34 @@ def send_chunks(server_socket, client_address, chunks):
         return ERROR
     return SUCCESS
 
+def recv_file(server_socket, client_address, total_chunks, dst):
+    received_chunks = 0
+    timeouts_count = 0
+    chunks = {}
+    while received_chunks < total_chunks and timeouts_count < MAX_TIMEOUTS_WAIT:
+        try:
+            response, addr = server_socket.recvfrom(CHUNK_SIZE)
+            chunk_id, chunk = response.decode().split(DELIMITER)
+            print("Received chunk id {}".format(chunk_id))
+            server_socket.sendto(chunk_id.encode(), client_address)
+            if chunk_id not in chunks:
+                chunks[chunk_id] = chunk
+                received_chunks += 1
+        except socket.timeout:
+            timeouts_count += 1
+            print('Timeout while waiting for ack!')
+            continue
+    if timeouts_count >= MAX_TIMEOUTS_WAIT:
+        return ERROR
+    write_file(dst, chunks)
+    return SUCCESS
+
+def write_file(dst, chunks):
+    dirname = os.path.dirname(dst)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    file = open(dst, "w")
+    size = len(chunks)
+    for i in range(0, size):
+        file.write(chunks[str(i)])
 
