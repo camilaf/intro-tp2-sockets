@@ -61,7 +61,8 @@ def start_server(server_address, storage_dir):
             else:
                 continue
         return SUCCESS
-    except:
+    except Exception as e:
+        print(e)
         return ERROR
     finally:
         server_socket.close()
@@ -76,7 +77,7 @@ def send_file(server_socket, client_address, file_name, file_size, offset):
             for j in range(WINDOW):
                 chunk_offset = i + j*offset
                 if chunk_offset < file_size:
-                    chunks[str(chunk_offset)] = f.read(offset)
+                    chunks[chunk_offset] = f.read(offset)
             print('Read {} from {}'.format(chunks, file_size))
             # Mando los chunks de a ventanas de WINDOW,
             # o sea mando una cantidad WINDOW de chunks de tamanio offset
@@ -88,30 +89,46 @@ def send_file(server_socket, client_address, file_name, file_size, offset):
 
 
 def send_chunks(server_socket, client_address, chunks, last_offset):
-    must_transfer = True
     i = 0
+    must_transfer = True
+    # seq num/offset de cada chunk que no tiene ack
+    seq_nums = sorted(chunks.keys()) 
     while must_transfer and i < MAX_TIMEOUTS_WAIT:
         # Mandamos todos los chunks de la lista que no
         # recibieron ack
-        for offset, chunk in chunks.items():
-            print('Send offset {} chunk {}'.format(offset, chunk))
-            server_socket.sendto((offset + DELIMITER + chunk).encode(), client_address)
+        for seq_num in seq_nums:
+            print('Send offset {} chunk {}'.format(seq_num, chunks[seq_num]))
+            server_socket.sendto((str(seq_num) + DELIMITER + chunks[seq_num]).encode(), client_address)
         try:
-            for _ in range(len(chunks)):
+            recv_attempts = len(seq_nums)
+            # intento recibir todos los ack
+            while recv_attempts > 0:
                 response, addr = server_socket.recvfrom(CHUNK_SIZE)
-                ack = response.decode()
-                print('Received ack {} last_offset {}'.format(ack, last_offset))
-                if int(ack) >= last_offset: # Ack acumulativo
-                    return SUCCESS
-                i = 0
-                if ack in chunks:
-                    chunks.pop(ack) # Borrar el ack si esta en el dict
-                must_transfer = len(chunks) > 0
-                print('chunks not acked {}'.format(chunks))
+                ack = int(response.decode())
+                print('Received ack {} '.format(ack))
+                i = 0 # reset timeouts
+                if ack < seq_nums[0]:
+                    pass #ack viejo
+                elif ack == seq_nums[0]:
+                    seq_nums.pop(0)
+                    recv_attempts -= 1
+                else:
+                    # si recibo un ack mas grande que el siguiente
+                    # descarto los mas chicos (Ack acumulativo)
+                    for pending_ack in seq_nums:
+                        if ack >= pending_ack: 
+                            print('Discarding reTx of {}.'.format(pending_ack))
+                            seq_nums.pop(0)
+                            recv_attempts-=1
+                must_transfer = len(seq_nums) > 0
+                print('chunks not acked {}'.format(seq_nums))
         except socket.timeout:
             i += 1
             print('Timeout while waiting for ack!')
             continue
+        except Exception as e:
+            print(e)
+            return ERROR
     if i >= MAX_TIMEOUTS_WAIT:
         return ERROR
     return SUCCESS
