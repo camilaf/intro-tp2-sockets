@@ -22,8 +22,13 @@ def start_server(server_address, storage_dir):
             print('Waiting for client to send message...')
             message, client_address = server_socket.recvfrom(CHUNK_SIZE)
 
+            message = message.decode()
+
             print('Received message {}'.format(message))
-            operation, file_info = message.decode().split(DELIMITER, 1)
+            if DELIMITER not in message:
+                continue
+
+            operation, file_info = message.split(DELIMITER, 1)
 
             if operation == 'download':
                 print('Requested info to download file {}'.format(file_info))
@@ -49,7 +54,10 @@ def start_server(server_address, storage_dir):
                 print('Starting file transmission')
 
                 server_socket.settimeout(2)
-                send_file(server_socket, client_address, file_info, os.path.getsize(file_info), int(OFFSET))
+                status = send_file(server_socket, client_address, file_info, os.path.getsize(file_info), int(OFFSET))
+                if status == SUCCESS:
+                    print('Sending END')
+                    server_socket.sendto('END'.encode(), client_address)
             else:
                 continue
         return SUCCESS
@@ -63,6 +71,7 @@ def send_file(server_socket, client_address, file_name, file_size, offset):
     with open(file_name) as f:
         for i in range(0, file_size, offset * WINDOW):
             chunks = {}
+            chunk_offset = 0
             # mappeo a los offsets de cada chunk con lo que lei del archivo. e.g: { 0 : 'manuelita ', 4: 'se marcho ' }
             for j in range(WINDOW):
                 chunk_offset = i + j*offset
@@ -72,13 +81,13 @@ def send_file(server_socket, client_address, file_name, file_size, offset):
             # Mando los chunks de a ventanas de WINDOW,
             # o sea mando una cantidad WINDOW de chunks de tamanio offset
             # y no sigo hasta asegurarme de que se recibieron bien todos
-            status = send_chunks(server_socket, client_address, chunks)
+            status = send_chunks(server_socket, client_address, chunks, chunk_offset if chunk_offset < file_size else (file_size//offset)*offset)
             if (status != SUCCESS):
                 return status
     return SUCCESS
 
 
-def send_chunks(server_socket, client_address, chunks):
+def send_chunks(server_socket, client_address, chunks, last_offset):
     must_transfer = True
     i = 0
     while must_transfer and i < MAX_TIMEOUTS_WAIT:
@@ -91,7 +100,10 @@ def send_chunks(server_socket, client_address, chunks):
             for _ in range(len(chunks)):
                 response, addr = server_socket.recvfrom(CHUNK_SIZE)
                 ack = response.decode()
-                print('Received ack {}'.format(ack))
+                print('Received ack {} last_offset {}'.format(ack, last_offset))
+                if int(ack) >= last_offset: # Ack acumulativo
+                    return SUCCESS
+                i = 0
                 if ack in chunks:
                     chunks.pop(ack) # Borrar el ack si esta en el dict
                 must_transfer = len(chunks) > 0
