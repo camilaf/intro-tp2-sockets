@@ -3,6 +3,9 @@ import os
 
 CHUNK_SIZE = 2048
 
+SUCCESS = 0
+ERROR = 1
+
 def download_file(server_address, name, dst):
   print('TCP: download_file({}, {}, {})'.format(server_address, name, dst))
 
@@ -15,7 +18,7 @@ def download_file(server_address, name, dst):
   response = client_socket.recv(CHUNK_SIZE)
   if response.decode() != "Start download":
     print("The connection experimented a problem")
-    return exit(1)
+    return ERROR
 
   # Send name of the file that we want to download
   client_socket.send(name.encode())
@@ -23,7 +26,7 @@ def download_file(server_address, name, dst):
   if response == "File not found":
     print("Closing connection due to the non-existence of the file")
     client_socket.close()
-    return exit(0)
+    return ERROR
 
   dirname = os.path.dirname(dst)
   if not os.path.exists(dirname):
