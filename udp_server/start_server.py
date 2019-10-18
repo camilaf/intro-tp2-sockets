@@ -139,8 +139,9 @@ def recv_file(server_socket, client_address, total_chunks, dst):
     chunks = {}
     while received_chunks < total_chunks and timeouts_count < MAX_TIMEOUTS_WAIT:
         try:
+            print('Entered recv_file')
             response, addr = server_socket.recvfrom(CHUNK_SIZE)
-            chunk_id, chunk = response.decode().split(DELIMITER)
+            chunk_id, chunk = response.decode().split(DELIMITER, 1)
             print("Received chunk id {}".format(chunk_id))
             server_socket.sendto(chunk_id.encode(), client_address)
             if chunk_id not in chunks:
