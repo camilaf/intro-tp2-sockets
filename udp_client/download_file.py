@@ -1,11 +1,10 @@
 import os
-import time
 import socket
 import errno
 
 CHUNK_SIZE = 2048
 DELIMITER = ';'
-MAX_TIMEOUTS = 5
+MAX_TIMEOUTS = 10
 SOCKET_TIMEOUT = 2
 
 SUCCESS = 0
@@ -42,7 +41,7 @@ def download_file(server_address, name, dst):
 
         status = recv_file(client_socket, server_address, file_size, chunks, offset)
 
-        if (status == SUCCESS):
+        if status == SUCCESS:
             print('Writing file...')
             write_file(file_size, chunks, offset, dst)
         return status
@@ -55,10 +54,10 @@ def send_message(message, server_address, client_socket):
         client_socket.sendto(message.encode(), server_address)
         try:
             response, addr = client_socket.recvfrom(CHUNK_SIZE)
-            return (SUCCESS, response.decode())
+            return SUCCESS, response.decode()
         except socket.timeout:
             print('Socket timed out attempting to send message!')
-    return (ERROR, '')
+    return ERROR, ''
 
 
 def recv_file(client_socket, server_address, file_size, chunks, offset):
@@ -93,15 +92,15 @@ def recv_file(client_socket, server_address, file_size, chunks, offset):
             print('total_received_size={}'.format(total_received_size))
 
             #arranco del siguiente chunk al ultimo ordenado:
-            pos = last_ordered_chunk + offset 
+            pos = last_ordered_chunk + offset
             # me fijo si llego a total_received_size, sino agarro la siguiente 'pos' que no este en chunks:
-            while (pos < total_received_size and pos in chunks): 
+            while pos < total_received_size and pos in chunks:
                 pos += offset #incremento de a offset
             last_ordered_chunk = pos - offset
 
             print('last_ordered_chunk = {}'.format(last_ordered_chunk))
 
-            if (last_ordered_chunk >= 0):
+            if last_ordered_chunk >= 0:
                 print('Send ack for last available chunk offset {}'.format(last_ordered_chunk))
                 client_socket.sendto(str(last_ordered_chunk).encode(), server_address)
 
@@ -109,7 +108,7 @@ def recv_file(client_socket, server_address, file_size, chunks, offset):
             print('Receive chunk timed out!')
             if total_received_size < file_size and timeouts < MAX_TIMEOUTS:
                 timeouts += 1
-                if (last_ordered_chunk >= 0):
+                if last_ordered_chunk >= 0:
                     print('Send ack for last available chunk offset {}'.format(last_ordered_chunk))
                     client_socket.sendto(str(last_ordered_chunk).encode(), server_address)
             else:
@@ -117,7 +116,7 @@ def recv_file(client_socket, server_address, file_size, chunks, offset):
 
     timeouts = 0
 
-    while (timeouts < MAX_TIMEOUTS):
+    while timeouts < MAX_TIMEOUTS:
         try:
             response, addr = client_socket.recvfrom(CHUNK_SIZE)
             message = response.decode()

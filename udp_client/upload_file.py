@@ -1,12 +1,10 @@
 import socket
 
-CHUNK_SIZE = 2000
+CHUNK_SIZE = 1024
 DELIMITER = ';'
-MAX_TIMEOUTS = 5
 SOCKET_TIMEOUT = 2
-OFFSET = 60
-WINDOW = 4
-MAX_TIMEOUTS_WAIT = 5
+WINDOW = 10
+MAX_TIMEOUTS_WAIT = 10
 
 SUCCESS = 0
 ERROR = 1
@@ -34,7 +32,7 @@ def upload_file(server_address, src, name):
   client_socket.close()
 
 def send_message(message, server_address, client_socket):
-  for _ in range(MAX_TIMEOUTS):
+  for _ in range(MAX_TIMEOUTS_WAIT):
     client_socket.sendto(message.encode(), server_address)
     try:
       response, addr = client_socket.recvfrom(CHUNK_SIZE)
@@ -72,6 +70,7 @@ def send_file(client_socket, server_address, chunks):
         response, addr = client_socket.recvfrom(CHUNK_SIZE)
         ack = response.decode()
         print('Received ack {}'.format(ack))
+        timeouts_count = 0
         # If it's a new ack
         if ack in chunk_keys:
           chunks_sent += 1
@@ -83,4 +82,5 @@ def send_file(client_socket, server_address, chunks):
         continue
   if timeouts_count >= MAX_TIMEOUTS_WAIT:
     return ERROR
+  print("All chunks sent")
   return SUCCESS

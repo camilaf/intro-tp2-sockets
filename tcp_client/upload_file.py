@@ -4,13 +4,16 @@ import os
 CHUNK_SIZE = 2048
 DELIMITER = ';'
 
+SUCCESS = 0
+ERROR = 1
+
 def upload_file(server_address, src, name):
   print('TCP: upload_file({}, {}, {})'.format(server_address, src, name))
   try:
     file = open(src, "rb")
   except IOError:
     print("File does not exist")
-    return exit(0)
+    return ERROR
 
   # Get the size of the file
   file.seek(0, os.SEEK_END)
@@ -21,12 +24,11 @@ def upload_file(server_address, src, name):
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect(server_address)
 
-  operation = "upload"
-  client_socket.send(operation.encode())
+  client_socket.send("upload".encode())
   response = client_socket.recv(CHUNK_SIZE)
   if response.decode() != "Start upload":
     print("The connection experimented a problem")
-    return exit(1)
+    return ERROR
 
   print("Sending size and name of the file")
   size_and_name_msg = str(file_size) + DELIMITER + name

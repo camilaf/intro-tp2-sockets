@@ -4,7 +4,7 @@ CHUNK_SIZE = 2048
 OFFSET = '60'
 DELIMITER = ';'
 WINDOW = 4
-MAX_TIMEOUTS_WAIT = 5
+MAX_TIMEOUTS_WAIT = 10
 
 SUCCESS = 0
 ERROR = 1
@@ -35,9 +35,10 @@ def start_server(server_address, storage_dir):
 
                 # Recibir el nombre del archivo y validar que existe
                 # Informar al cliente del resultado
-                if os.path.isfile(file_info):
+                file_path = storage_dir + "/" + file_info
+                if os.path.isfile(file_path):
                     print('Found file {}'.format(file_info))
-                    file_size = os.path.getsize(file_info)
+                    file_size = os.path.getsize(file_path)
                     response = str(file_size) + DELIMITER + OFFSET
                     server_socket.sendto(response.encode(), client_address)
                 else:
@@ -54,7 +55,7 @@ def start_server(server_address, storage_dir):
                 print('Starting file transmission')
 
                 server_socket.settimeout(2)
-                status = send_file(server_socket, client_address, file_info, os.path.getsize(file_info), int(OFFSET))
+                status = send_file(server_socket, client_address, file_path, os.path.getsize(file_path), int(OFFSET))
                 if status == SUCCESS:
                     print('Sending END')
                     server_socket.sendto('END'.encode(), client_address)
@@ -89,11 +90,11 @@ def send_file(server_socket, client_address, file_name, file_size, offset):
 
 
 def send_chunks(server_socket, client_address, chunks, last_offset):
-    i = 0
+    timeouts_count = 0
     must_transfer = True
     # seq num/offset de cada chunk que no tiene ack
-    seq_nums = sorted(chunks.keys()) 
-    while must_transfer and i < MAX_TIMEOUTS_WAIT:
+    seq_nums = sorted(chunks.keys())
+    while must_transfer and timeouts_count < MAX_TIMEOUTS_WAIT:
         # Mandamos todos los chunks de la lista que no
         # recibieron ack
         for seq_num in seq_nums:
@@ -106,7 +107,7 @@ def send_chunks(server_socket, client_address, chunks, last_offset):
                 response, addr = server_socket.recvfrom(CHUNK_SIZE)
                 ack = int(response.decode())
                 print('Received ack {} '.format(ack))
-                i = 0 # reset timeouts
+                timeouts_count = 0 # reset timeouts
                 if ack < seq_nums[0]:
                     pass #ack viejo
                 elif ack == seq_nums[0]:
@@ -116,20 +117,20 @@ def send_chunks(server_socket, client_address, chunks, last_offset):
                     # si recibo un ack mas grande que el siguiente
                     # descarto los mas chicos (Ack acumulativo)
                     for pending_ack in seq_nums:
-                        if ack >= pending_ack: 
+                        if ack >= pending_ack:
                             print('Discarding reTx of {}.'.format(pending_ack))
                             seq_nums.pop(0)
                             recv_attempts-=1
                 must_transfer = len(seq_nums) > 0
                 print('chunks not acked {}'.format(seq_nums))
         except socket.timeout:
-            i += 1
+            timeouts_count += 1
             print('Timeout while waiting for ack!')
             continue
         except Exception as e:
             print(e)
             return ERROR
-    if i >= MAX_TIMEOUTS_WAIT:
+    if timeouts_count >= MAX_TIMEOUTS_WAIT:
         return ERROR
     return SUCCESS
 
@@ -139,10 +140,10 @@ def recv_file(server_socket, client_address, total_chunks, dst):
     chunks = {}
     while received_chunks < total_chunks and timeouts_count < MAX_TIMEOUTS_WAIT:
         try:
-            print('Entered recv_file')
             response, addr = server_socket.recvfrom(CHUNK_SIZE)
             chunk_id, chunk = response.decode().split(DELIMITER, 1)
             print("Received chunk id {}".format(chunk_id))
+            timeouts_count = 0
             server_socket.sendto(chunk_id.encode(), client_address)
             if chunk_id not in chunks:
                 chunks[chunk_id] = chunk
@@ -164,4 +165,5 @@ def write_file(dst, chunks):
     size = len(chunks)
     for i in range(0, size):
         file.write(chunks[str(i)])
+    file.close()
 
