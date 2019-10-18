@@ -142,6 +142,8 @@ def recv_file(server_socket, client_address, total_chunks, dst):
         try:
             response, addr = server_socket.recvfrom(CHUNK_SIZE)
             chunk_id, chunk = response.decode().split(DELIMITER, 1)
+            if chunk_id == "upload":
+                return ERROR
             print("Received chunk id {}".format(chunk_id))
             timeouts_count = 0
             server_socket.sendto(chunk_id.encode(), client_address)
